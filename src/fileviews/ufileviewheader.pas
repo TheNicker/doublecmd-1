@@ -116,6 +116,7 @@ begin
         Key := 0; // catch the enter
         NewPath:= NormalizePathDelimiters(FPathEdit.Text);
         NewPath:= ReplaceEnvVars(ReplaceTilde(NewPath));
+        NewPath:=ExpandAbsolutePath(NewPath);
         if not mbFileExists(NewPath) then
           begin
             if not ChooseFileSource(FFileView, NewPath, True) then

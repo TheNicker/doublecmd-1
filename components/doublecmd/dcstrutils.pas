@@ -27,7 +27,11 @@ unit DCStrUtils;
 interface
 
 uses
-  Classes, SysUtils, DCBasicTypes,LazUtf8;
+  Classes
+{$IFDEF MSWINDOWS}
+  ,Windows
+{$ENDIF}
+  ,SysUtils, DCBasicTypes,LazUtf8;
 
 const
   NoQuotesSpecialChars     = [' ', '"', '''', '(', ')', ':', '&', '!', '$', '*', '?', '=', '`', '\', '|', ';', #10];
@@ -490,11 +494,12 @@ begin
       Result := sPath + sRelativeFileName;
 
     ptRelative:
-      Result := ExpandAbsolutePath(sPath + sRelativeFileName);
+      Result := sPath + sRelativeFileName;
 
     ptAbsolute:
       Result := sRelativeFileName;
   end;
+  Result := ExpandAbsolutePath(Result);
 end;
 
 function GetPathType(const sPath : String): TPathType;
@@ -664,33 +669,47 @@ end;
 
 function ExpandAbsolutePath(const Path: String): String;
 var
+{$IFDEF MSWINDOWS}
+  data          :  array [0..MAX_PATH] of char;
+{$ELSE}
   I, J: Integer;
+{$ENDIF}
+
 begin
-  Result := Path;
+{$IFDEF MSWINDOWS}
+  if (GetFullPathNameA(PChar(Path),MAX_PATH,data,PLPSTR(nil)) > 0) then
+    Result:= data
+  else
+    Result:= Path;
+{$ELSE}
+Result := Path;
+{First remove all references to '\.\'}
+I := Pos (DirectorySeparator + '.' + DirectorySeparator, Result);
+while I <> 0 do
+  begin
+    Delete (Result, I, 2);
+    I := Pos (DirectorySeparator + '.' + DirectorySeparator, Result);
+  end;
+if StrEnds(Result, DirectorySeparator + '.') then
+  Delete (Result, Length(Result) - 1, 2);
 
-  {First remove all references to '\.\'}
-  I := Pos (DirectorySeparator + '.' + DirectorySeparator, Result);
-  while I <> 0 do
-    begin
-      Delete (Result, I, 2);
-      I := Pos (DirectorySeparator + '.' + DirectorySeparator, Result);
-    end;
-  if StrEnds(Result, DirectorySeparator + '.') then
-    Delete (Result, Length(Result) - 1, 2);
+{Then remove all references to '\..\'}
+I := Pos (DirectorySeparator + '..', Result);
+while (I <> 0) do
+  begin
+    J := Pred (I);
+    while (J > 0) and (Result [J] <> DirectorySeparator) do
+      Dec (J);
+    if (J = 0) then
+      Delete (Result, I, 3)
+    else
+      Delete (Result, J, I - J + 3);
+    I := Pos (DirectorySeparator + '..', Result);
+  end;
+{$ENDIF}
 
-  {Then remove all references to '\..\'}
-  I := Pos (DirectorySeparator + '..', Result);
-  while (I <> 0) do
-    begin
-      J := Pred (I);
-      while (J > 0) and (Result [J] <> DirectorySeparator) do
-        Dec (J);
-      if (J = 0) then
-        Delete (Result, I, 3)
-      else
-        Delete (Result, J, I - J + 3);
-      I := Pos (DirectorySeparator + '..', Result);
-    end;
+
+
 end;
 
 function HasPathInvalidCharacters(Path: String): Boolean;
